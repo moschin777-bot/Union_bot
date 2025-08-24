@@ -1,68 +1,32 @@
-import logging
-from aiogram import Bot, Dispatcher, executor, types
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 import os
+from pyrogram import Client, filters
+from keywords import keywords
 
-API_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+API_ID = int(os.getenv("API_ID", "12345"))
+API_HASH = os.getenv("API_HASH", "your_api_hash")
 
-logging.basicConfig(level=logging.INFO)
+app = Client("bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
 
-bot = Bot(token=API_TOKEN)
-dp = Dispatcher(bot)
+@app.on_message(filters.text & ~filters.edited)
+async def handle_message(client, message):
+    text = message.text.lower()
+    found = None
 
-# --- Главное меню ---
-main_menu = ReplyKeyboardMarkup(resize_keyboard=True)
-main_menu.add(
-    KeyboardButton("🏗 Строительное оборудование"),
-    KeyboardButton("🧱 Строительные материалы")
-)
-main_menu.add(
-    KeyboardButton("👷 Строители"),
-    KeyboardButton("📋 Вакансии")
-)
-main_menu.add(
-    KeyboardButton("📑 Подряды и тендеры"),
-    KeyboardButton("🚛 Грузоперевозки")
-)
-main_menu.add(
-    KeyboardButton("🚜 Спецтехника"),
-    KeyboardButton("➕ Опубликовать объявление")
-)
+    for category, subcats in keywords.items():
+        for subcat, words in subcats.items():
+            for w in words:
+                if w in text:
+                    found = (category, subcat)
+                    break
+            if found:
+                break
+        if found:
+            break
 
-# --- Обработчики ---
-@dp.message_handler(commands=["start"])
-async def start_cmd(message: types.Message):
-    await message.answer(
-        "Добро пожаловать в Союз Строителей и Поставщиков!\n"
-        "Выберите категорию из меню:",
-        reply_markup=main_menu
-    )
+    if found:
+        await message.reply(f"Объявление определено: {found[0]} → {found[1]}")
+    else:
+        await message.reply("Не удалось определить категорию. Уточните вручную.")
 
-@dp.message_handler(lambda m: m.text == "➕ Опубликовать объявление")
-async def publish_ad(message: types.Message):
-    await message.answer(
-        "Отправьте текст вашего объявления.\n\n"
-        "Формат:\nКатегория\nОписание\nКонтакты"
-    )
-
-@dp.message_handler(lambda m: m.text in [
-    "🏗 Строительное оборудование",
-    "🧱 Строительные материалы",
-    "👷 Строители",
-    "📋 Вакансии",
-    "📑 Подряды и тендеры",
-    "🚛 Грузоперевозки",
-    "🚜 Спецтехника"
-])
-async def category_selected(message: types.Message):
-    await message.answer(
-        f"Вы выбрали категорию: {message.text}\n"
-        f"Здесь будут объявления по этой теме."
-    )
-
-@dp.message_handler(content_types=["text"])
-async def handle_text(message: types.Message):
-    await message.answer("Ваше сообщение сохранено как объявление (пока без базы данных).")
-
-if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
+app.run()
